@@ -1,0 +1,9 @@
+voronoi-perc-M/Results/**
+*.asv
+*.csv
+*.xls
+*.png
+*.eps
+
+
+

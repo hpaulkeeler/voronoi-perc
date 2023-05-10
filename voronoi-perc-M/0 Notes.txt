@@ -1,0 +1,31 @@
+To create a street system, run
+
+[streetVoronoi,endVoronoi]=funStreetVoronoiPoisson(lambdaS,scaleLength);
+
+where lambdaS>0 is intensity (or average density) of a (spatial) Poisson point proces and scaleLength > 0 is the side of square simulation window.
+
+To generate users on the streets, run
+
+userPoisson=funUserPoisson(streetVoronoi,lambdaU);
+
+where lambdaU is the intensity (or average density) of a (linear) Poisson point process.
+
+To generate relays at crossroads (or street intersections), run
+
+relayBinomial=funRelayBinomial(endVoronoi,pRelay);
+
+where 0 <= pRelay <=1 is the probability of a relay being at a crossroads (or street intersection).
+
+File order:
+
+funPoissonTiled.m or funPoissonSquare.m
+
+funVoronoiFinite.m
+
+funSegBox.m
+
+funStreetVoronoi.m
+
+
+
+

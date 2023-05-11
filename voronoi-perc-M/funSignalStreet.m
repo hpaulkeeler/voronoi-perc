@@ -26,18 +26,19 @@ colStreetEndP_S=streetInput.colStreetEndP_S;
 colStreetEndQ_S=streetInput.colStreetEndQ_S;
 indexStreetTruncP_S=streetInput.indexStreetTruncP_S;
 indexStreetTruncQ_S=streetInput.indexStreetTruncQ_S;
-numbStreetCrossMax_S=streetInput.numbStreetCrossMax_S;
 
 %retrieve variables from (street) end data structure
 rowEndStreetABC_E=endInput.bindexEndStreetABC_E;
-numbEnd_E=endInput.numbEnd_E;
 booleEndStreetABC_E=endInput.booleEndStreetABC_E;
+
+%numbStreetCrossMax_S=streetInput.numbStreetCrossMax_S;
+size_EndStreetABC=size(booleEndStreetABC_E);
 
 %assign street lengths for each street intersecting at street end
 lengthStreetTruncABC_ss=lengthStreet_S(rowEndStreetABC_E(booleEndStreetABC_E));
 
 %matrix for lengths of (internal) streets at street ends
-lengthEndStreetABC=zeros(numbEnd_E,numbStreetCrossMax_S);
+lengthEndStreetABC=zeros(size_EndStreetABC);
 lengthEndStreetABC(booleEndStreetABC_E)=lengthStreetTruncABC_ss;
 
 %add truncated (street segments to ends (ie treat ends like crossroads)
@@ -72,9 +73,7 @@ booleEndStreetABC_E(rowStreetEndQ_S(indexStreetTruncQ_S),2)=true;
 %update street lengths for each street end
 lengthEndStreetABC_End=lengthEndStreetABC(booleEndStreetABC_E);
 
-% each row is a street end connected to numbStreetCrossMax_S streets at most
-%usually numbStreetCrossMax_S=3;
-sigEndStreetEnd=zeros(numbEnd_E,numbStreetCrossMax_S); %initial power values
+sigEndStreetEnd=zeros(size_EndStreetABC); %initial power values
 %at each street end calculate signal powers from relays on adjacent streets
 %relays can be inside or outside simulation window
 sigEndStreetEnd(booleEndStreetABC_E)=funPathloss_d(lengthEndStreetABC_End);

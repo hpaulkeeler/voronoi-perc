@@ -48,7 +48,7 @@ datetimeStart=(datetime(datetime,'Format','yy-MM-dd_HH-mm-ss'));
 
 numbSimS=30; %number of street simulations
 
-booleWrite=0; %write results to file
+booleWrite=1; %write results to file
 boolePlot=1; %create plots
 %can't write plots to file without plotting them
 booleWrite=boolePlot&booleWrite;
@@ -188,15 +188,7 @@ for kk=1:numb_param2
 
         %generate a single street system
         [street_ss,end_ss]=funStreetVoronoiPoisson(lambdaS,scaleLength);
-        %place users on street system
-        user_ss=funUserPoisson(street_ss,lambdaU_Max);
-        %place relays on street system
-        relay_ss=funRelayBinomial(end_ss,1); %put relays on all crossroads
 
-        %number of streets/street ends/relays in layout
-        numbStreet_ss=street_ss.numbStreet_S;
-        numbEnd_ss=end_ss.numbEnd_E;
-        numbRelay_ss=relay_ss.numbRelay_R;
 
         %intiiate connectivity boolean vectors
         booleConnectRelay_ss=false(1,numb_param1);
@@ -209,7 +201,7 @@ for kk=1:numb_param2
         % find shared ends
         indexEndCrossExtSharedJ_ss=end_ss.indexEndCrossExtSharedJ_E;
         indexEndCrossExtSharedK_ss=end_ss.indexEndCrossExtSharedK_E;
-        
+
         %which street ends intersect with other street ends
         booleEndStreetABC_ss=end_ss.booleEndStreetABC_E;
 
@@ -232,16 +224,11 @@ for kk=1:numb_param2
                 beta_tt,kappa_tt,...
                 XZ,indexTX,indexRX,I0);
 
-            numbUser_ss=user_ss.numbUser_U; %number of users in ss layout
 
-            %%%START Setting up parameters (p and U) for randomness START%%%
-            %randomly select a subset of relays
-            %booleEndRelay_ss=funRelayThin(pRelay_tt,relay_ss,end_ss);
 
+            %%%START Setting up relays and users START%%%
+            %place relays on street system
             relay_ss=funRelayBinomial(end_ss,pRelay_tt);
-
-            %randomly permutate all users
-            indexUserRand=randperm(numbUser_ss);
 
             if lambdaU_Max>0
                 %thinning probability (for users)
@@ -249,23 +236,27 @@ for kk=1:numb_param2
             else
                 probThinUser_tt=0;
             end
-            booleUserThin=rand(numbUser_ss,1)<=probThinUser_tt;
-            %thin Poisson users (obtaining another Poisson process)
-            indexUser_ss=user_ss.indexUser_U(indexUserRand(booleUserThin));
-            numbUser_ss_tt=length(indexUser_ss);
-            %%%END Setting up parameters for randomness END%%%
+            %place users on street system
+            lambdaU_tt=probThinUser_tt*lambdaU_Max;
+            user_ss=funUserPoisson(street_ss,lambdaU_tt);
+            numbUser_ss_tt=user_ss.numbUser_U; %number of users in ss layout
+            %randomly permutate all users
+            indexUserRand=randperm(numbUser_ss_tt);
+            indexUser_ss_tt=user_ss.indexUser_U(indexUserRand);
+
+            %%%END Setting up p up relays and users END%%%
 
             %%%START - Check relay-to-relay connectivity - START%%%
             %calculate signal strengths at all street ends
             sigEndStreetEnd_ss_tt=funSignalStreet(street_ss,end_ss,funPathloss_d);
-            
+
             [stinrEndStreetRelay_PQ_ss_tt,interEndRelay_ss_tt]...
                 =funRelaySTINR(street_ss,relay_ss,thetaInter_tt,ratioNoise_tt,sigEndStreetEnd_ss_tt);
 
             %find open streets based on relay-to-relay connectivity
             booleOpenRelay_ss_tt=funRelayOpen(tauSTINR_tt,stinrEndStreetRelay_PQ_ss_tt);
 
-            %run function to see if it's connected
+            %check if graph is connected (ie a horizontal or vertical crossing)
             booleConnected_ss_tt=funConnectedComp(street_ss,end_ss,booleOpenRelay_ss_tt);
 
             booleConnectRelay_ss(tt)=booleConnected_ss_tt;
@@ -274,7 +265,7 @@ for kk=1:numb_param2
             %%%START - Calculate SINR values for users on streets - START%%%
             %number of users on each street in layout ss
             numbStreetUser_ss=user_ss.numbStreetUser_U;
-            indexStreetUserCell_ss=mat2cell(-ones(numbUser_ss,1),numbStreetUser_ss);
+            indexStreetUserCell_ss=mat2cell(-ones(numbUser_ss_tt,1),numbStreetUser_ss);
             countStreetUser_ss=zeros(size(numbStreetUser_ss)); %starting index
 
             %interference of relays and users
@@ -282,57 +273,60 @@ for kk=1:numb_param2
 
             for uuUser=1:numbUser_ss_tt
                 %retrieve user index from list of user indices indexSim_U_ss
-                indexUser_ss_uu=indexUser_ss(uuUser);
+                indexUser_ss_uu=indexUser_ss_tt(uuUser);
                 indexStreet_uu=user_ss.indexStreet_U(indexUser_ss_uu); %user's street index
-                %retrieve indices for street ends P and Q
-                indexEndP_uu=user_ss.indexEndP_U(indexUser_ss_uu);
-                indexEndQ_uu=user_ss.indexEndQ_U(indexUser_ss_uu);
-                %ternary variable saying whether user is on extended street
-                ternUserExt_uu=user_ss.ternUserExt_U(indexUser_ss_uu);
-
-                %retrieve distances relative to street ends (inside simulation
-                %window)
-                distEndUserP_uu=user_ss.distEndP_U(indexUser_ss_uu);
-                distEndUserQ_uu=user_ss.distEndQ_U(indexUser_ss_uu);
-                %signal powers experienced at street ends (not relays) P and Q
-                sigEndUserP_uu=funPathloss_B_K(beta_tt,kappa_tt,distEndUserP_uu);
-                sigEndUserQ_uu=funPathloss_B_K(beta_tt,kappa_tt,distEndUserQ_uu);
-                %TO EDIT: pre-calculate above terms
 
                 %update which streets users exist on
                 countStreetUser_ss_uu=countStreetUser_ss(indexStreet_uu)+1;
                 countStreetUser_ss(indexStreet_uu)=countStreetUser_ss_uu;
                 indexStreetUserCell_ss{indexStreet_uu}(countStreetUser_ss_uu)=indexUser_ss_uu;
 
-                indexStreetPQ_ABC_uu=[indexStreet_uu,indexStreet_uu];
-                booleEndQ_uu=[true(1),false(1)];
-
-                %number of adjacent open streets in immediate neighbourhood
-                numbStreetNeigh=numel(indexStreetPQ_ABC_uu)-1;
-                rangeStreet=1:(numbStreetNeigh+1);
-                for iiStreet=rangeStreet
-                    indexStreet_uu_ii=indexStreetPQ_ABC_uu(iiStreet); %street index
-
-                    %choose which street end (P or Q) for interference term
-                    if booleEndQ_uu(iiStreet)
-                        indexEndP_or_Q_uu=indexEndP_uu; %interference at P end
-                        sigEndP_or_Q_uu=sigEndUserP_uu;
-                    else
-                        indexEndP_or_Q_uu=indexEndQ_uu; %interference at Q end
-                        sigEndP_or_Q_uu=sigEndUserQ_uu;
-                    end
-
-
-                end %(iiStreet in rangeStreet loop)
-                %%%END Check adjacent streets END%%%
+                % %retrieve indices for street ends P and Q
+                % indexEndP_uu=user_ss.indexEndP_U(indexUser_ss_uu);
+                % indexEndQ_uu=user_ss.indexEndQ_U(indexUser_ss_uu);
+                % %ternary variable saying whether user is on extended street
+                % ternUserExt_uu=user_ss.ternUserExt_U(indexUser_ss_uu);
+                %
+                % %retrieve distances relative to street ends (inside simulation
+                % %window)
+                % distEndUserP_uu=user_ss.distEndP_U(indexUser_ss_uu);
+                % distEndUserQ_uu=user_ss.distEndQ_U(indexUser_ss_uu);
+                % %signal powers experienced at street ends (not relays) P and Q
+                % sigEndUserP_uu=funPathloss_B_K(beta_tt,kappa_tt,distEndUserP_uu);
+                % sigEndUserQ_uu=funPathloss_B_K(beta_tt,kappa_tt,distEndUserQ_uu);
+                % %TO EDIT: pre-calculate above terms
+                %
+                %
+                %
+                % indexStreetPQ_ABC_uu=[indexStreet_uu,indexStreet_uu];
+                % booleEndQ_uu=[true(1),false(1)];
+                %
+                % %number of adjacent open streets in immediate neighbourhood
+                % numbStreetNeigh=numel(indexStreetPQ_ABC_uu)-1;
+                % rangeStreet=1:(numbStreetNeigh+1);
+                % for iiStreet=rangeStreet
+                %     indexStreet_uu_ii=indexStreetPQ_ABC_uu(iiStreet); %street index
+                %
+                %     %choose which street end (P or Q) for interference term
+                %     if booleEndQ_uu(iiStreet)
+                %         indexEndP_or_Q_uu=indexEndP_uu; %interference at P end
+                %         sigEndP_or_Q_uu=sigEndUserP_uu;
+                %     else
+                %         indexEndP_or_Q_uu=indexEndQ_uu; %interference at Q end
+                %         sigEndP_or_Q_uu=sigEndUserQ_uu;
+                %     end
+                %
+                %
+                % end %(iiStreet in rangeStreet loop)
+                % %%%END Check adjacent streets END%%%
 
             end %end looping through users
             %%%END- Calculate SINR values for users on streets - END%%%
 
             %final connectivity due to users and relays
             [booleOpenRelayUser_ss,booleOpenRelayUserP_Q_ss,booleOpenRelayUserQ_P_ss]=...
-                funRelayUserOpen(street_ss, user_ss,...
-                relay_ss,interEndRelayUser_ss_tt,...
+                funRelayUserOpen(street_ss,relay_ss, user_ss,...
+                interEndRelayUser_ss_tt,...
                 countStreetUser_ss,indexStreetUserCell_ss,funOpen_User_tt);
 
             %run connectivity function to see if the network is connected

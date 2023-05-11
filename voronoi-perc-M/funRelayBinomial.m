@@ -82,7 +82,8 @@ function relayBinomial=funRelayBinomial(endInput,pRelay)
         relayBinomialSingle.numbEnd_R=numbEnd_E;
         relayBinomialSingle.numbRelay_R=numbRelay;
         relayBinomialSingle.numbEndRelay_R=numbEndRelay;
-        relayBinomialSingle.booleRelayStreetABC_R=booleRelayStreetABC_R;        
+        relayBinomialSingle.booleRelayStreetABC_R=booleRelayStreetABC_R; 
+        relayBinomialSingle.booleEndRelay_R=booleEndRelay;
 
     end
 end

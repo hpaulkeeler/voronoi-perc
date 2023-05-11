@@ -13,15 +13,11 @@
 
 
 function [booleOpenRelayUser_ss,booleOpenRelayUserP_Q_ss,booleOpenRelayUserQ_P_ss]=...
-    funRelayUserOpen(street_ss,user_ss,...
-    booleEndRelay_ss,interEndRelay_ss,...
-    countStreetUser_ss,indexStreetUserCell_ss,funOpenUserInput)
+    funRelayUserOpen(street_ss,user_ss,relay_ss,...
+    interEndRelayUser_ss,...
+    countStreetUser_ss,indexStreetUserCell_ss,funOpen_User_Input)
 
-%countStreetUser_ss
-%countStreetUser_ss2=cellfun(@numel,indexStreetUserCell_ss)
-
-%interference of relays and users
-interEndRelayUser_ss=interEndRelay_ss;
+booleEndRelay_ss=relay_ss.booleEndRelay_R;
 
 % street lengths
 lengthStreet_ss=street_ss.lengthStreet_S;
@@ -45,58 +41,56 @@ booleOpenRelayUserP_Q_ss=false(size(lengthStreet_ss));
 booleOpenRelayUserQ_P_ss=false(size(lengthStreet_ss));
 numbStreet_ss=numel(lengthStreet_ss);
 for indexStreet_rr=1:numbStreet_ss
+    countStreetUser_ss_rr=countStreetUser_ss(indexStreet_rr);
+
+    %length of street
+    lengthStreet_rr=lengthStreet_ss(indexStreet_rr);
+
     %retrieve indices for street ends P and Q
     indexEndP_rr=rowStreetEndP_ss(indexStreet_rr);
     indexEndQ_rr=rowStreetEndQ_ss(indexStreet_rr);
 
-    %check if any relays are missing at either street end P or Q
-    booleNoRelay=any(~booleEndRelay_ss([indexEndP_rr,indexEndQ_rr]));
+    %relative distances (from street ends to relays)
+    distStreetRelayP_rr=distStreetRelayP_ss(indexStreet_rr);
+    distStreetRelayQ_rr=distStreetRelayQ_ss(indexStreet_rr);
 
-    %%%START Connection model check START%%%
-    if booleNoRelay
-        %no connection without a relay at each street end
-        booleOpenPQ_or_QP_uu=false;
+    if countStreetUser_ss_rr>0
+        indexUser_ss_rr=indexStreetUserCell_ss{indexStreet_rr}(1:countStreetUser_ss_rr);
+        %retrieve distances relative to street ends (inside simulation
+        %window)
+        distEndUserP_uu=distEndP_U_ss(indexUser_ss_rr);
+        %retrieve and sort distances distances from street end P
+        distEndP_U_uu=sort(distEndUserP_uu); %sort distances
+        %distances from end P
+        distEndP_U_Q_uu=[distStreetRelayP_rr;distEndP_U_uu;distStreetRelayQ_rr];
 
-        booleOpenRelayUserP_Q_ss(indexStreet_rr)=booleOpenPQ_or_QP_uu;
-        booleOpenRelayUserQ_P_ss(indexStreet_rr)=booleOpenPQ_or_QP_uu;
     else
-        countStreetUser_ss_rr=countStreetUser_ss(indexStreet_rr);
+        distEndP_U_Q_uu=[distStreetRelayP_rr;distStreetRelayQ_rr];
+    end
 
-        %length of street
-        lengthStreet_rr=lengthStreet_ss(indexStreet_rr);
+    %distances from end Q
+    distEndQ_U_P_uu=(lengthStreet_rr-distEndP_U_Q_uu);
 
-        %relative distances (from street ends to relays)
-        distStreetRelayP_rr=distStreetRelayP_ss(indexStreet_rr);
-        distStreetRelayQ_rr=distStreetRelayQ_ss(indexStreet_rr);
-
-        if countStreetUser_ss_rr>0
-            indexUser_ss_rr=indexStreetUserCell_ss{indexStreet_rr}(1:countStreetUser_ss_rr);
-            %retrieve distances relative to street ends (inside simulation
-            %window)
-            distEndUserP_uu=distEndP_U_ss(indexUser_ss_rr);
-            %retrieve and sort distances distances from street end P
-            distEndP_U_uu=sort(distEndUserP_uu); %sort distances
-            %distances from end P
-            distEndP_U_Q_uu=[distStreetRelayP_rr;distEndP_U_uu;distStreetRelayQ_rr];
-
+    %streets to search (for checking connection both directions)
+    booleEndQ_uu=[true(1),false(1)];
+    for iiStreetWay=1:2
+        %choose which street end (P or Q) for interference term
+        if booleEndQ_uu(iiStreetWay)
+            xz=distEndP_U_Q_uu;
+            indexEndP_or_Q_uu=indexEndP_rr; %interference at P end
         else
-            distEndP_U_Q_uu=[distStreetRelayP_rr;distStreetRelayQ_rr];
+            xz=distEndQ_U_P_uu;
+            indexEndP_or_Q_uu=indexEndQ_rr; %interference at Q end
         end
 
-        %distances from end Q
-        distEndQ_U_P_uu=(lengthStreet_rr-distEndP_U_Q_uu);
+        %check if any relays are missing at either street end P or Q
+        booleNoRelay=any(~booleEndRelay_ss([indexEndP_rr,indexEndQ_rr]));
 
-        %streets to search (for checking connection both directions)
-        booleEndQ_uu=[true(1),false(1)];
-        for iiStreetWay=1:2
-            %choose which street end (P or Q) for interference term
-            if booleEndQ_uu(iiStreetWay)
-                xz=distEndP_U_Q_uu;
-                indexEndP_or_Q_uu=indexEndP_rr; %interference at P end
-            else
-                xz=distEndQ_U_P_uu;
-                indexEndP_or_Q_uu=indexEndQ_rr; %interference at Q end
-            end
+        %%%START Connection model check START%%%
+        if booleNoRelay
+            %no connection without a relay at each street end
+            booleOpenPQ_or_QP_uu=false;
+        else
 
             % For truncated streets, the next section chooses either:
             % 1) the relay associated to the truncated street end
@@ -122,7 +116,7 @@ for indexStreet_rr=1:numbStreet_ss
 
             %check if street is open (via every hop) in one direction
             booleOpenPQ_or_QP_uu=...
-                all(arrayfun(@(s,t,inter_xz)funOpenUserInput(xz,s,t,inter_xz),...
+                all(arrayfun(@(s,t,inter_xz)funOpen_User_Input(xz,s,t,inter_xz),...
                 indexTX_xz, indexRX_xz,interEndPQ_or_QP_uu));
         end
         %%%END Connection model check END%%%

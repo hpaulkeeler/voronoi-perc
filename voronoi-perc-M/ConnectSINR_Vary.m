@@ -46,9 +46,9 @@ set(0,'defaultAxesFontSize',12);
 set(0,'defaultLegendFontSize',12);
 datetimeStart=(datetime(datetime,'Format','yy-MM-dd_HH-mm-ss'));
 
-numbSimS=40; %number of street simulations
+numbSimS=30; %number of street simulations
 
-booleWrite=1; %write results to file
+booleWrite=0; %write results to file
 boolePlot=1; %create plots
 %can't write plots to file without plotting them
 booleWrite=boolePlot&booleWrite;
@@ -198,7 +198,7 @@ for kk=1:numb_param2
         numbEnd_ss=end_ss.numbEnd_E;
         numbRelay_ss=relay_ss.numbRelay_R;
 
-         %intiiate connectivity boolean vectors
+        %intiiate connectivity boolean vectors
         booleConnectRelay_ss=false(1,numb_param1);
         booleConnectRelayUser_ss=false(1,numb_param1);
 
@@ -209,9 +209,9 @@ for kk=1:numb_param2
         % find shared ends
         indexEndCrossExtSharedJ_ss=end_ss.indexEndCrossExtSharedJ_E;
         indexEndCrossExtSharedK_ss=end_ss.indexEndCrossExtSharedK_E;
-
+        
+        %which street ends intersect with other street ends
         booleEndStreetABC_ss=end_ss.booleEndStreetABC_E;
-
 
         %START varying parameters
         for tt=1:numb_param1
@@ -224,10 +224,8 @@ for kk=1:numb_param2
             beta_tt=betaValues(tt);
             kappa_tt=kappaValues(tt);
 
-            %caculate signal strengths at all street ends
-            sigEndStreetEnd_ss=...
-                funSignalStreet(street_ss,end_ss,...
-                @(d)funPathloss_B_K(beta_tt,kappa_tt,d));
+            %anonymous function with the path loss data
+            funPathloss_d=@(d)funPathloss_B_K(beta_tt,kappa_tt,d);
 
             %annoymous function for passing to funStreetRelayUserOpen
             funOpen_User_tt=@(XZ,indexTX,indexRX,I0)funOpen_User(tauSTINR_tt,thetaInter_tt,ratioNoise_tt, ...
@@ -237,49 +235,50 @@ for kk=1:numb_param2
             numbUser_ss=user_ss.numbUser_U; %number of users in ss layout
 
             %%%START Setting up parameters (p and U) for randomness START%%%
-             %randomly select a subset of relays
-            booleEndRelay_ss=funRelayThin(pRelay_tt,relay_ss,end_ss);
-    
+            %randomly select a subset of relays
+            %booleEndRelay_ss=funRelayThin(pRelay_tt,relay_ss,end_ss);
+
+            relay_ss=funRelayBinomial(end_ss,pRelay_tt);
+
             %randomly permutate all users
             indexUserRand=randperm(numbUser_ss);
 
             if lambdaU_Max>0
                 %thinning probability (for users)
-                probUser_Thin_tt=lambdaU_tt./lambdaU_Max;
+                probThinUser_tt=lambdaU_tt./lambdaU_Max;
             else
-                probUser_Thin_tt=0;
+                probThinUser_tt=0;
             end
-            booleUserThin=rand(numbUser_ss,1)<=probUser_Thin_tt;
+            booleUserThin=rand(numbUser_ss,1)<=probThinUser_tt;
             %thin Poisson users (obtaining another Poisson process)
             indexUser_ss=user_ss.indexUser_U(indexUserRand(booleUserThin));
             numbUser_ss_tt=length(indexUser_ss);
             %%%END Setting up parameters for randomness END%%%
 
-
-
             %%%START - Check relay-to-relay connectivity - START%%%
-[stinrEndStreetRelay_P_ss,stinrEndStreetRelay_Q_ss,interEndRelay_ss]...
-                =funRelaySTINR(street_ss,relay_ss,booleEndRelay_ss,thetaInter_tt,ratioNoise_tt,sigEndStreetEnd_ss);
+            %calculate signal strengths at all street ends
+            sigEndStreetEnd_ss_tt=funSignalStreet(street_ss,end_ss,funPathloss_d);
+            
+            [stinrEndStreetRelay_PQ_ss_tt,interEndRelay_ss_tt]...
+                =funRelaySTINR(street_ss,relay_ss,thetaInter_tt,ratioNoise_tt,sigEndStreetEnd_ss_tt);
 
             %find open streets based on relay-to-relay connectivity
-            booleOpenRelay_ss_tt=funRelayOpen(tauSTINR_tt,stinrEndStreetRelay_P_ss,stinrEndStreetRelay_Q_ss);
-            
-            %run function to see if it's connected
-            [booleConnected_ss_0,booleTraverseVer_ss,booleTraverseHor_ss]=...
-                funConnectedComp(street_ss,end_ss,booleOpenRelay_ss_tt);
+            booleOpenRelay_ss_tt=funRelayOpen(tauSTINR_tt,stinrEndStreetRelay_PQ_ss_tt);
 
-            booleConnectRelay_ss(tt)=booleConnected_ss_0;
+            %run function to see if it's connected
+            booleConnected_ss_tt=funConnectedComp(street_ss,end_ss,booleOpenRelay_ss_tt);
+
+            booleConnectRelay_ss(tt)=booleConnected_ss_tt;
             %%%END - Check relay-to-relay connectivity - END%%%
 
             %%%START - Calculate SINR values for users on streets - START%%%
             %number of users on each street in layout ss
-
             numbStreetUser_ss=user_ss.numbStreetUser_U;
             indexStreetUserCell_ss=mat2cell(-ones(numbUser_ss,1),numbStreetUser_ss);
             countStreetUser_ss=zeros(size(numbStreetUser_ss)); %starting index
 
             %interference of relays and users
-            interEndRelayUser_ss=interEndRelay_ss;
+            interEndRelayUser_ss_tt=interEndRelay_ss_tt;
 
             for uuUser=1:numbUser_ss_tt
                 %retrieve user index from list of user indices indexSim_U_ss
@@ -332,8 +331,8 @@ for kk=1:numb_param2
 
             %final connectivity due to users and relays
             [booleOpenRelayUser_ss,booleOpenRelayUserP_Q_ss,booleOpenRelayUserQ_P_ss]=...
-                funStreetRelayUserOpen(street_ss, user_ss,...
-                booleEndRelay_ss,interEndRelayUser_ss,...
+                funRelayUserOpen(street_ss, user_ss,...
+                relay_ss,interEndRelayUser_ss_tt,...
                 countStreetUser_ss,indexStreetUserCell_ss,funOpen_User_tt);
 
             %run connectivity function to see if the network is connected
@@ -374,41 +373,32 @@ for kk=1:numb_param2
             labelTitle= append(labelTitle,'$',labelParamAll{vv},' = ',sprintf(' %0.4g',valueParamAll(vv)),'$',labelSepAll(tt));
         end
 
-        if booleWrite
-
-            %create directories
-            strFormat=append('-%0.%',string(numbDigitsPrint),'f');
-            str_kk=append(pathParamAll{choiceParam2},sprintf( '-%0.10f',valueParamAll(choiceParam2)));
-            pathResultsTimePlot_kk=append(pathResultsTime,strPlots,str_kk,'/');
-            mkdir(pathResultsTimePlot_kk);
-        end
-
         figure;
         plot(paramValues,probConnect, 'r.');
         ylim([0,1]);
-        listFileName={'FigProbConnectPlain_','FigProbConnect_'};
-        for ff=1:2
-            strFileName=listFileName{ff};
-            %saving figures
-            savefig(append(pathResultsTimePlot_kk,strFileName,str_kk,'.fig')); %save figure
-            ax = gca;
-            %export figure as jpg and put in simulation root directory
-            exportgraphics(ax,append(pathResultsTimePlot_kk,strFileName,str_kk,".png"));
-            exportgraphics(ax,append(pathResultsTimePlot_kk,strFileName,str_kk,".eps"));
-
-            %add labels and title to second plot
-            xlabel(label_x);
-            ylabel('Connected Probability');
-
-        end
+        %add labels and title to second plot
+        xlabel(label_x);
+        ylabel('Connected Probability');
         title(labelTitle); %add descriptive title
 
 
-        if booleWrite
-            exportgraphics(ax,append(pathResultsTime,strFileName,str_kk,".png"));
-        end
     end
     if booleWrite
+        %create directories
+        strFormat=append('-%0.%',string(numbDigitsPrint),'f');
+        str_kk=append(pathParamAll{choiceParam2},sprintf( '-%0.10f',valueParamAll(choiceParam2)));
+        pathResultsTimePlot_kk=append(pathResultsTime,strPlots,str_kk,'/');
+        mkdir(pathResultsTimePlot_kk);
+        %filename base for figures
+        strFileName='FigProbConnect_';
+        %saving figures
+        savefig(append(pathResultsTimePlot_kk,strFileName,str_kk,'.fig')); %save figure
+        ax = gca;
+        %export figure as jpg and put in simulation root directory
+        exportgraphics(ax,append(pathResultsTimePlot_kk,strFileName,str_kk,".png"));
+        exportgraphics(ax,append(pathResultsTimePlot_kk,strFileName,str_kk,".eps"));
+        exportgraphics(ax,append(pathResultsTime,strFileName,str_kk,".png"));
+
         strParam1=pathParamAll{choiceParam1};
         %write parameters to file of connection to file
         writematrix(paramValues,append(pathResultsTimePlot_kk,strParam1,'_Values_',str_kk,'.csv'));
@@ -436,9 +426,11 @@ for kk=1:numb_param2
         str_funPathLoss=append(str_funPathLoss,sprintf(',where beta = %0.3g',beta_kk),...
             sprintf(' and K = %0.3g',kappa_kk), '.');
         writelines(str_funPathLoss,append(pathResultsTimePlot_kk,'funPathLoss.txt'));
+
+        close all;
+
     end
 
-    close all;
 
 
 end

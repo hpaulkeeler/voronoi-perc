@@ -21,6 +21,25 @@ This percolation model uses a line-of-sight requirement, where relays and users 
 ## Another Poisson-Voronoi percolation model
 The model presented here is not the same as the site percolation model based on Poisson-Voronoi tessellation, which is a tiling percolation model. Under this model, each cell of a Poisson-Voronoi tessellation is coloured one colour, say, black independently from all other cells with some fixed probability p. Then the random tiling of black cells is examined. Bollobás and Riordan gave an exact result for percolation probability of this model.
 
+## Instructions
+
+To generate a Poisson Voronoi street system, run:
+
+`[streetVoronoi,endVoronoi]=funStreetVoronoiPoisson(lambdaS,scaleLength)`
+
+where `lambdaS>=0` is the intensity of the underlying Poisson point process and `scaleLength` is the side of the square simulatio window centred at the origin.
+
+To (randomly) place users on the streets, run:
+
+`userPoisson=funUserPoisson(streetVoronoi,lambdaU)`
+
+where `lambdaU>=0` is the intensity (the mean density) of users on the street. 
+
+To (randomly) place relays at crossroads (or street intersections), run:
+
+`relayBinomial=funRelayBinomial(endVoronoi,pRelay);`
+
+where `pRelay>=0` is the probability of a relay being located at a crossroads (or street intersection). 
 
 ## Relevant literature
 
